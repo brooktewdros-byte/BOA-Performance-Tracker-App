@@ -1,0 +1,13 @@
+import React from 'react';
+
+function App() {
+  return (
+    <div style={{ textAlign: 'center', marginTop: '50px' }}>
+      <h1>Bank of Abyssinia</h1>
+      <h2>Performance Tracker - Coming Soon</h2>
+      <p>Backend API: {import.meta.env.VITE_API_URL || 'http://localhost:5000'}</p>
+    </div>
+  );
+}
+
+export default App;
