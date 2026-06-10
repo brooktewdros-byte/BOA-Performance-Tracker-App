@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-// API base URL – will be set by Netlify environment variable
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 axios.defaults.baseURL = API_URL;
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);  // <-- new loading state
   const [page, setPage] = useState('dashboard');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,10 +30,13 @@ function App() {
     if (token) {
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       fetchUser();
+    } else {
+      setLoading(false);
     }
   }, [token]);
 
   const fetchUser = async () => {
+    setLoading(true);
     try {
       const res = await axios.get('/auth/me');
       setUser(res.data);
@@ -41,7 +44,10 @@ function App() {
       if (['branch_manager', 'district_manager', 'ho_admin'].includes(res.data.role)) fetchReviewQueue();
       fetchDashboard();
     } catch (err) {
+      console.error(err);
       logout();
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -64,11 +70,12 @@ function App() {
   };
 
   const fetchReviewQueue = async () => {
+    if (!user) return;
     try {
       let endpoint = '';
-      if (user?.role === 'branch_manager') endpoint = '/entries/branch/pending';
-      else if (user?.role === 'district_manager') endpoint = '/entries/district/pending';
-      else if (user?.role === 'ho_admin') endpoint = '/entries/ho/pending';
+      if (user.role === 'branch_manager') endpoint = '/entries/branch/pending';
+      else if (user.role === 'district_manager') endpoint = '/entries/district/pending';
+      else if (user.role === 'ho_admin') endpoint = '/entries/ho/pending';
       if (endpoint) {
         const res = await axios.get(endpoint);
         setReviewQueue(res.data);
@@ -80,13 +87,15 @@ function App() {
 
   const login = async (e) => {
     e.preventDefault();
+    setError('');
     try {
       const res = await axios.post('/auth/login', { email, password });
       localStorage.setItem('token', res.data.token);
       setToken(res.data.token);
-      setError('');
+      setEmail('');
+      setPassword('');
     } catch (err) {
-      setError('Invalid credentials');
+      setError(err.response?.data?.error || 'Invalid credentials');
     }
   };
 
@@ -95,6 +104,7 @@ function App() {
     delete axios.defaults.headers.common['Authorization'];
     setToken(null);
     setUser(null);
+    setLoading(false);
   };
 
   const handleSubmitEntry = async (e) => {
@@ -136,7 +146,13 @@ function App() {
     }
   };
 
-  if (!token) {
+  // Still loading user data
+  if (loading) {
+    return <div style={{ textAlign: 'center', marginTop: '50px' }}>Loading...</div>;
+  }
+
+  // Not logged in
+  if (!token || !user) {
     return (
       <div style={{ maxWidth: '400px', margin: '50px auto', padding: '20px', border: '1px solid #ccc', borderRadius: '8px' }}>
         <h2>Bank of Abyssinia</h2>
@@ -152,6 +168,7 @@ function App() {
     );
   }
 
+  // Logged in – show main app
   return (
     <div style={{ minHeight: '100vh', background: '#f3f4f6' }}>
       <nav style={{ background: 'white', padding: '10px 20px', display: 'flex', gap: '20px', borderBottom: '1px solid #ddd' }}>
@@ -165,7 +182,7 @@ function App() {
         {page === 'dashboard' && (
           <div>
             <h2>Dashboard</h2>
-            {dashboardData && (
+            {dashboardData ? (
               <div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px,1fr))', gap: '15px', marginBottom: '20px' }}>
                   <div style={{ background: 'white', padding: '15px', borderRadius: '8px' }}>Total Deposits: ETB {dashboardData.summary?.totalDeposit?.toLocaleString() || 0}</div>
@@ -183,6 +200,8 @@ function App() {
                   </div>
                 )}
               </div>
+            ) : (
+              <p>Loading dashboard...</p>
             )}
           </div>
         )}
